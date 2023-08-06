@@ -1,0 +1,124 @@
+#!/bin/bash
+
+credentials_file="data/credentials.txt"
+
+hash_password() {
+    local salt=$(openssl rand -hex 8)
+    local hashed_pass=$(echo -n "$1$salt" | sha256sum | awk '{print $1}')
+echo "$hashed_pass:$salt"  
+}
+
+
+# Function to register new credentials
+register_credentials() {
+
+    echo "Username:"  #New user enters their name
+    read user 
+    read -s -p "password: " password
+    echo
+
+    echo Name: 
+    read name 
+    read -p "Role (Customer, Admin, Pharmacist: " role #asking the new user the role
+    local hash_pass=$(hash_password "$password") # since there is a function that makes a salted hash of the password, I call it and pass the argument password
+    echo "$user:$hash_pass:$name:$role" >> $credentials_file # the username, hashed password and the role should be appended to the file credentials_file
+
+
+    # Insert code to register add the created user to a file called credentials.txt
+    # Write your code here
+ 
+
+  echo -e "Registration successful. You can now log in.\n"
+}
+
+#Function to verify credentials and privileges
+verify_credentials() {
+    local stored_cred=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 2-)
+    local role=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 5-)
+
+    if [[ -n "$stored_cred" ]]; then
+        local stored_pass=$(echo "$stored_cred" | cut -d ':' -f 1)
+        local salt=$(echo "$stored_cred" | cut -d ':' -f 2)
+        local hashed_pass=$(echo -n "password"$salt | sha256sum | awk '{print $1}')
+
+
+    # Compare the generated hash with the stored password hash
+    if [[ "$hashed_pass" == "$stored_pass" ]]; then
+        echo "Authentication successful. Welcome, $admin!"
+        # This is where the user/admin gets their menu
+    else
+        echo "Password or username incorrect"
+        get_credentials
+
+    fi
+
+     if [[ "$role" == "admin" || "$role" == "Admin" ]]; then
+               echo "Hello admin"
+       else
+               echo "Welcome back user"
+	       user_menu
+
+     fi
+
+
+get_credentials() {
+
+echo "Welcome to the authentication System"
+echo "Please enter your name to log in"
+read user
+read -s -p "password : " password
+    # Write code to read the user username and password
+   # The password must be invisible while typing to ensure that no one can read it while inserting it
+    return 0
+}
+
+# Function for the user menu
+user_menu() {
+    echo "Welcom $user, you are successfully logged in!"
+
+
+    exit 0
+}
+
+# Function to display the menu
+user_menu() {
+    echo "Select Option :"
+    local a=Login
+    local b=Register
+    local c=Logout
+    local d="Close the program"
+
+    echo -e "1. $a\n2. $b\n3. $c\n4. $d"
+    echo "Enter your choice: "
+    return 0
+}
+
+user_menu
+
+read -p "Option : " option
+
+echo
+
+case $option in
+    1)
+        echo "Welcome back, log in your details"
+        get_credentials
+        verify_credentials
+        ;;
+    2)
+        echo "Please enter your details to register"
+        register_credentials
+        get_credentials
+        ;;
+    3)
+        echo "Logging out"
+        sleep 2
+        exit 0
+        ;;
+    4)
+        exit 0
+        ;;
+    *)
+        echo "Enter the correct option"
+        ;;
+esac
