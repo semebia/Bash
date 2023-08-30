@@ -1,0 +1,295 @@
+#!/bin/bash
+
+#to be updated to match your settings
+#PROJECT_HOME="."
+
+credentials_file="data/credentials.txt"
+
+# Function to prompt for credentials
+
+get_credentials() {
+echo "Please enter name to log in"
+read user
+read -s -p "password : " password
+
+echo
+
+return 0
+
+}
+
+
+generate_salt() {
+ 
+	openssl rand -hex 8
+    return 0
+}
+
+#function for hashing
+
+hash_password() {
+   
+   #arg1 is the password
+    #arg2 is the salt
+
+    salt=$(generate_salt)
+
+    #local salt=$2
+    local hash_pass=$(echo -n "$password$salt" | sha256sum | awk '{print $1}')
+    echo "$hash_pass:$salt"
+    
+    
+    return 0
+}
+
+check_existing_username(){
+
+	local username=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 1)
+
+	if [[ "$username" == "$user" ]]; then
+
+		echo "Hello $user, you are already registered, login now"
+		get_credentials
+		verify_credentials
+	else 
+		echo "$user:$hash_pass:$name:$role" >> $credentials_file
+		echo "You have registered in successfully $user"
+		echo "You may log in now"
+		get_credentials
+		verify_credentials
+    fi
+
+    return 0
+    ## verify if a username is already included in the credentials file
+}
+
+
+register_credentials() {
+    # arg1 is the username
+    # arg2 is the password
+    # arg3 is the fullname of the user
+    # arg4 (optional) is the role. Defaults to "normal"
+    
+    echo "Please enter username"
+    read user
+    read -s -p "password : " password
+    echo
+    hash_pass=$(hash_password "$password")
+    read -p "Full Name : " name
+   
+   if [[ $user == "admin" ]]; then
+	   read -p "Enter role :" role
+
+   else
+	   role="user"
+   fi
+
+   check_existing_username
+	    
+}
+
+verify_credentials() {
+
+    local stored_cred=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 2-)
+    local role=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 5-)
+    local name=$(grep "^$user:" "$credentials_file" | cut -d ':' -f 4)
+
+    if [[ -n "$stored_cred" ]]; then
+        local stored_pass=$(echo "$stored_cred" | cut -d ':' -f 1)
+        local salt=$(echo "$stored_cred" | cut -d ':' -f 2)
+        local hashed_pass=$(echo -n $password$salt | sha256sum | awk '{print $1}')
+
+
+    # Compare the generated hash with the stored password hash
+     if [[ "$hashed_pass" == "$stored_pass" ]]; then
+	     if [[ "$role" == "admin" || "$role" == "Admin" ]]; then
+		     echo "Hello admin!"
+		     #admin_menu
+	     else
+		     echo "Welcome back $user"
+		     #user_menu
+	fi
+	new_hashed_pass=$(hash_password "$password")
+	sed -i "s/^$user:.*$/$user:$new_hashed_pass:$name:$role:1/" "$credentials_file"
+
+	# Create or override the .logged_in file to indicate the user is logged in
+	echo "$user:$new_hashed_pass:$name:$role:1" > .logged_in
+
+ 
+else
+	echo "Password or username incorrect"
+	get_credentials
+	verify_credentials
+    fi
+else
+        echo "You need to register"
+        register_credentials
+
+fi
+}
+
+user_menu(){
+echo "Select an option"
+echo -e "1. Logout \n2. Exit"
+
+	read -p "Select choice: " user_choice
+
+	case $user_choice in
+
+		1)
+			echo "Logging out..............."
+			logout_user
+			;;
+		2)
+			echo "exiting...."
+			sleep 1
+			exit
+			;;
+
+		*) 
+			echo "Select the right option"
+			user_menu
+			;;
+
+	esac
+}
+
+admin_menu(){
+
+ echo "Welcome admin, kindly select an option!"
+    local a="Create New User"
+    local b=Logout
+    local c=Exit
+   
+
+    echo -e "1. $a\n2. $b\n3. $c"
+    echo "Enter your choice: "
+
+
+read -p "Option : " choose
+
+echo
+
+case $choose in
+    1)
+        register_credentials
+        ;;
+
+    2)
+        echo "Logging out..............."
+        sleep 2
+        logout_user
+        ;;
+    3)  echo "Exiting ....."
+	sleep 1
+        exit 0
+        ;;
+    *)
+        echo "Enter the correct option"
+	admin_menu
+        ;;
+esac
+
+return 0
+
+
+}
+
+check_login(){
+
+
+	if [[ -s .logged_in ]];then
+
+	login_status=$(cat .logged_in | cut -d ':' -f 6)
+	
+
+	role=$(cat .logged_in | cut -d ':' -f 5)
+
+	
+		if [[ $login_status == 1 && $role == "user" ]]; then
+			user_menu
+		elif [[ $login_status == 1 && $role == "admin" ]]; then
+			admin_menu
+		 else
+			 register_menu
+		fi
+	else 
+		register_menu
+
+	fi
+}
+     
+
+
+logout_user(){
+
+
+
+	if [[ -s .logged_in ]]; then
+		 user=$(cat .logged_in | cut -d ':' -f 1)
+
+        # Delete the existing .logged_in file
+        rm .logged_in
+
+	# Update the credentials file by changing the last field to 0 to indicate logout
+        sed -i "s/^$user:.*$/$user:$new_hashed_pass:$name:$role:0/" "$credentials_file"
+
+        echo "Logout successful. Goodbye, $logged_in_user!"
+    else
+        echo "You are not currently logged in."
+    fi
+
+}
+
+
+
+
+# Function for the user menu
+register_menu() {
+    echo "Welcome, kindly select an option!"
+    local a=Login
+    local b=Register
+    local c=Logout
+    local d="Close the program"
+
+    echo -e "1. $a\n2. $b\n3. $c\n4. $d"
+    echo "Enter your choice: "
+
+
+read -p "Option : " option
+
+echo
+
+case $option in
+    1)
+        echo "Welcome back, log in your details"
+        get_credentials
+        verify_credentials
+        ;;
+    2)
+        echo "Please enter your details to register"
+        register_credentials
+
+        ;;
+    3)
+        echo "Logging out..............."
+        sleep 2
+        logout_user
+        ;;
+    4)
+        exit 0
+        ;;
+    *)
+        echo "Enter the correct option"
+	register_menu
+        ;;
+esac
+
+return 0
+
+}
+
+while true; do
+	check_login
+done
+
